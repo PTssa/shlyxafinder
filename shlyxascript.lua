@@ -22,6 +22,7 @@ local guiOpen = true
 local isHopping = false
 local autoHopMode = nil  -- nil, "random" or "low_pop"
 local autoGrabEnabled = false
+local screenGui = nil
 local HOP_FLAG_FILE = "sbx_hop_mode.txt" -- файл-флаг в папке эксекьютора
 
 -- Проверяем, был ли прыжок с предыдущего сервера (через файл)
@@ -659,4 +660,3 @@ if autoHopMode then
         ServerHop(autoHopMode)
     end)
 end
-
