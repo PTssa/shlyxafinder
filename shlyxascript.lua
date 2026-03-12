@@ -50,26 +50,87 @@ end
 
 -- ============== BRAINROT ITEM DETECTION ===================
 
+local function getBrainrotFolders()
+    local folders = {}
+    -- Пробуем найти папки, в которых игра обычно хранит предметы
+    for _, name in ipairs({"Brainrots", "BrainrotItems", "Items", "Collectibles", "Spawns", "Level"}) do
+        local folder = Workspace:FindFirstChild(name)
+        if folder then table.insert(folders, folder) end
+    end
+    
+    -- Если игра хранит предметы прямо в воркспейсе
+    if #folders == 0 then
+        table.insert(folders, Workspace)
+    end
+    
+    return folders
+end
+
 local function isBrainrotItem(obj)
     if not obj then return false end
+    if not (obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart")) then return false end
+    
     local name = obj.Name:lower()
-    local keywords = {"brainrot", "skibidi", "toilet", "sigma", "rizz", "gyatt", "ohio", "fanum", "tax", "mewing", "aura", "cap", "item", "spawn"}
+    
+    -- Исключаем обычные детали карты и игроков
+    if obj:FindFirstChild("Humanoid") then return false end
+    if name == "part" or name == "meshpart" or name == "model" or name == "baseplate" or name == "spawnlocation" or name:find("tree") or name:find("wall") or name:find("floor") or name:find("door") then return false end
+    
+    -- Список слов-маркеров для Brainrot'ов
+    local keywords = {
+        "brainrot", "skibidi", "toilet", "sigma", "rizz", "gyatt", "ohio", 
+        "fanum", "tax", "mewing", "aura", "npc", "gigachad", "smurf", "cat",
+        "grimace", "looksmax", "sus", "amogus", "imposter", "goofy", "ahh"
+    }
+    
     for _, kw in ipairs(keywords) do
         if name:find(kw) then return true end
     end
-    if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt") then
-        return true
+
+    -- Если у объекта уникальное имя (не дефолтное) И есть интеракшн (но это не дверь)
+    if name ~= "block" and name ~= "wedges" then
+        if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt") then
+            if not name:find("door") and not name:find("button") and not name:find("shop") and not name:find("buy") then
+                return true
+            end
+        end
     end
+
+    -- Поиск внутри модели предметов (иногда ProximityPrompt лежит внутри)
+    if obj:IsA("Model") then
+        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+        local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+        
+        if prompt or click then
+            -- Проверяем ActionText: обычно на дверях "Open", на магазине "Shop", а вот на Brainrot'ах "Collect", "Steal", "Pick up" или имя предмета
+            if prompt then
+                local action = prompt.ActionText:lower()
+                local objectName = prompt.ObjectText:lower()
+                if action:find("steal") or action:find("collect") or action:find("grab") or action:find("take") or
+                   objectName:find("brainrot") or objectName:find("brain") then
+                    return true
+                end
+            end
+            
+            -- Если это неопознанная модель, но с ClickDetector внутри, считаем сомнительной
+            -- Раскомментируйте следующую строку, если ESP всё ещё пропускает вещи
+            -- return true 
+        end
+    end
+
     return false
 end
 
 local function getAllBrainrots()
     local items = {}
+    local folders = getBrainrotFolders()
+    local scanned = {} -- чтобы не дублировать
     
     local function scan(parent)
         for _, child in ipairs(parent:GetChildren()) do
-            if (child:IsA("Model") or child:IsA("BasePart") or child:IsA("MeshPart")) and isBrainrotItem(child) then
+            if isBrainrotItem(child) and not scanned[child] then
                 table.insert(items, child)
+                scanned[child] = true
             end
             if child:IsA("Folder") or child:IsA("Model") then
                 scan(child)
@@ -77,7 +138,10 @@ local function getAllBrainrots()
         end
     end
 
-    scan(Workspace)
+    for _, folder in ipairs(folders) do
+        scan(folder)
+    end
+    
     return items
 end
 
