@@ -88,54 +88,44 @@ end
 
 local function isBrainrotItem(obj)
     if not obj then return false end
-    if not (obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart")) then return false end
+    
+    -- Простая проверка: если есть ProximityPrompt или ClickDetector, и это не дверь/магазин
+    local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+    local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+    
+    if not (prompt or click) then return false end
     
     local name = obj.Name:lower()
     
-    -- Исключаем обычные детали карты и игроков
-    if obj:FindFirstChild("Humanoid") then return false end
-    if name == "part" or name == "meshpart" or name == "model" or name == "baseplate" or name == "spawnlocation" or name:find("tree") or name:find("wall") or name:find("floor") or name:find("door") then return false end
+    -- Исключаем дефолтные вещи
+    if name == "door" or name:find("door") or name:find("shop") or name:find("buy") or name:find("gamepass") then
+        return false
+    end
     
+    -- Если внутри подсказки "Collect", "Steal", "Pick up" и т.д.
+    if prompt then
+        local action = prompt.ActionText:lower()
+        if action:find("collect") or action:find("steal") or action:find("grab") or action:find("take") or action:find("pick") then
+            return true
+        end
+    end
+
     -- Список слов-маркеров для Brainrot'ов
     local keywords = {
         "brainrot", "skibidi", "toilet", "sigma", "rizz", "gyatt", "ohio", 
         "fanum", "tax", "mewing", "aura", "npc", "gigachad", "smurf", "cat",
-        "grimace", "looksmax", "sus", "amogus", "imposter", "goofy", "ahh"
+        "grimace", "looksmax", "sus", "amogus", "imposter", "goofy", "ahh",
+        "brain", "coin", "gem", "money", "cash"
     }
     
     for _, kw in ipairs(keywords) do
         if name:find(kw) then return true end
+        if prompt and prompt.ObjectText:lower():find(kw) then return true end
     end
 
-    -- Если у объекта уникальное имя (не дефолтное) И есть интеракшн (но это не дверь)
-    if name ~= "block" and name ~= "wedges" then
-        if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt") then
-            if not name:find("door") and not name:find("button") and not name:find("shop") and not name:find("buy") then
-                return true
-            end
-        end
-    end
-
-    -- Поиск внутри модели предметов (иногда ProximityPrompt лежит внутри)
-    if obj:IsA("Model") then
-        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-        local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
-        
-        if prompt or click then
-            -- Проверяем ActionText: обычно на дверях "Open", на магазине "Shop", а вот на Brainrot'ах "Collect", "Steal", "Pick up" или имя предмета
-            if prompt then
-                local action = prompt.ActionText:lower()
-                local objectName = prompt.ObjectText:lower()
-                if action:find("steal") or action:find("collect") or action:find("grab") or action:find("take") or
-                   objectName:find("brainrot") or objectName:find("brain") then
-                    return true
-                end
-            end
-            
-            -- Если это неопознанная модель, но с ClickDetector внутри, считаем сомнительной
-            -- Раскомментируйте следующую строку, если ESP всё ещё пропускает вещи
-            -- return true 
-        end
+    -- Если ничего не нашли, но это не дефолтный объект и есть промпт - на всякий случай считаем предметом
+    if name ~= "block" and name ~= "part" and name ~= "meshpart" then
+        return true
     end
 
     return false
@@ -150,26 +140,12 @@ local function refreshItemCache()
     local newItems = {}
     local scanned = {}
     
-    local function scan(parent)
-        for _, child in ipairs(parent:GetChildren()) do
-            if not scanned[child] and isBrainrotItem(child) then
-                table.insert(newItems, child)
-                scanned[child] = true
-            end
-            -- Ограничиваем глубину сканирования для безопасности
-            if child:IsA("Folder") or child:IsA("Model") then
-                for _, sub in ipairs(child:GetChildren()) do
-                    if not scanned[sub] and isBrainrotItem(sub) then
-                        table.insert(newItems, sub)
-                        scanned[sub] = true
-                    end
-                end
-            end
+    -- Сканируем ВЕСЬ воркспейс, чтобы точно ничего не пропустить
+    for _, desc in ipairs(Workspace:GetDescendants()) do
+        if not scanned[desc] and isBrainrotItem(desc) then
+            table.insert(newItems, desc)
+            scanned[desc] = true
         end
-    end
-
-    for _, folder in ipairs(getBrainrotFolders()) do
-        scan(folder)
     end
     cachedItems = newItems
 end
@@ -233,16 +209,14 @@ end
 
 local function autoGrabLoop()
     while true do
-        task.wait(0.1) -- Увеличили частоту для мгновенного подбора (без TP)
+        task.wait(0.05) -- Ещё быстрее для подбора на бегу
         if autoGrabEnabled then
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             
             if hrp then
-                -- Работаем с копией таблицы, чтобы избежать ошибок при удалении предметов
-                local currentItems = {unpack(cachedItems)}
-                for _, item in ipairs(currentItems) do
-                    if item.Parent then
+                for _, item in ipairs(cachedItems) do
+                    if item and item.Parent then
                         tryGrabItem(item)
                     end
                 end
@@ -413,7 +387,7 @@ local function createGUI()
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 360, 0, 405)
+    mainFrame.Size = UDim2.new(0, 360, 0, 420) -- Увеличили размер, чтобы всё влезло
     mainFrame.Position = UDim2.new(0.5, -180, 0.5, -202)
     mainFrame.BackgroundColor3 = Color3.fromRGB(15, 12, 25)
     mainFrame.BorderSizePixel = 0
@@ -474,7 +448,7 @@ local function createGUI()
     titleLbl.Size = UDim2.new(1, -60, 1, 0)
     titleLbl.Position = UDim2.new(0, 15, 0, 0)
     titleLbl.BackgroundTransparency = 1
-    titleLbl.Text = "🧠 SCRIPTERBLOX | FINDER (V2)"
+    titleLbl.Text = "🧠 SCRIPTERBLOX | FINDER (FINAL)"
     titleLbl.TextColor3 = Color3.fromRGB(230, 210, 255)
     titleLbl.Font = Enum.Font.GothamBold
     titleLbl.TextSize = 14
@@ -617,18 +591,19 @@ local function createGUI()
         return btn
     end
 
-    createHopBtn(115, "Hop to Random Server", "🎲", Color3.fromRGB(140, 70, 255), "random")
-    createHopBtn(170, "Hop to Low Pop. Server", "📉", Color3.fromRGB(80, 160, 255), "low_pop")
+    createHopBtn(130, "Hop to Random Server", "🎲", Color3.fromRGB(140, 70, 255), "random")
+    createHopBtn(190, "Hop to Low Pop. Server", "📉", Color3.fromRGB(80, 160, 255), "low_pop")
 
     -- STATUS PANEL
     local statusPanel = Instance.new("Frame")
     statusPanel.Name = "StatusPanel"
     statusPanel.Size = UDim2.new(1, 0, 0, 80)
-    statusPanel.Position = UDim2.new(0, 0, 0, 235)
+    statusPanel.Position = UDim2.new(0, 0, 0, 250)
     statusPanel.BackgroundColor3 = Color3.fromRGB(20, 15, 35)
     statusPanel.Parent = content
     createCorner(statusPanel, 8)
     createStroke(statusPanel, Color3.fromRGB(100, 60, 180), 1, 0.5)
+    statusPanel.ZIndex = 2 -- Выше кнопок, на всякий случай
 
     local statusLbl = Instance.new("TextLabel")
     statusLbl.Name = "StatusText"
