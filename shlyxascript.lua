@@ -526,3 +526,12 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 print("✅ Scripterblox Finder Loaded!")
+
+-- ============= АВТО-ХОППИНГ ПОСЛЕ ТЕЛЕПОРТА ==================
+if autoHopMode then
+    spawn(function()
+        task.wait(4) -- ждём пока игра загрузится и GUI поднимется
+        print("[AUTO HOP] Resuming " .. autoHopMode .. " mode...")
+        ServerHop(autoHopMode)
+    end)
+end
