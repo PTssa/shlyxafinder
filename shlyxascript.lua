@@ -21,8 +21,6 @@ local espObjects = {}
 local guiOpen = true
 local isHopping = false
 local autoHopMode = nil  -- nil, "random" or "low_pop"
-local autoGrabEnabled = false
-local screenGui = nil
 local HOP_FLAG_FILE = "sbx_hop_mode.txt" -- файл-флаг в папке эксекьютора
 
 -- Проверяем, был ли прыжок с предыдущего сервера (через файл)
@@ -163,63 +161,6 @@ local function getAllBrainrots()
     
     return items
 end
-
--- ===================== AUTO GRAB ==========================
-
-local function tryGrabItem(item)
-    if not item or not item.Parent then return false end
-    
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
-    -- Ищем ProximityPrompt или ClickDetector
-    local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
-    local clickDetector = item:FindFirstChildWhichIsA("ClickDetector", true)
-    
-    if prompt then
-        -- Проверяем расстояние
-        local part = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
-        if part then
-            local dist = (part.Position - hrp.Position).Magnitude
-            if dist <= prompt.MaxActivationDistance then
-                pcall(function()
-                    fireproximityprompt(prompt)
-                end)
-                return true
-            end
-        end
-    elseif clickDetector then
-        -- Для ClickDetector просто кликаем
-        pcall(function()
-            fireclickdetector(clickDetector)
-        end)
-        return true
-    end
-    
-    return false
-end
-
-local function autoGrabLoop()
-    while true do
-        task.wait(0.5)
-        if autoGrabEnabled then
-            local items = getAllBrainrots()
-            local char = LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    for _, item in ipairs(items) do
-                        tryGrabItem(item)
-                    end
-                end
-            end
-        end
-    end
-end
-
-spawn(autoGrabLoop)
 
 -- ======================= ESP ==============================
 
@@ -381,8 +322,8 @@ local function createGUI()
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 360, 0, 405)
-    mainFrame.Position = UDim2.new(0.5, -180, 0.5, -202)
+    mainFrame.Size = UDim2.new(0, 360, 0, 350)
+    mainFrame.Position = UDim2.new(0.5, -180, 0.5, -175)
     mainFrame.BackgroundColor3 = Color3.fromRGB(15, 12, 25)
     mainFrame.BorderSizePixel = 0
     mainFrame.ClipsDescendants = true
@@ -515,51 +456,6 @@ local function createGUI()
         end
     end)
 
-    -- AUTO GRAB TOGGLE
-    local grabFrame = Instance.new("Frame")
-    grabFrame.Size = UDim2.new(1, 0, 0, 45)
-    grabFrame.Position = UDim2.new(0, 0, 0, 55)
-    grabFrame.BackgroundColor3 = Color3.fromRGB(25, 20, 40)
-    grabFrame.Parent = content
-    createCorner(grabFrame, 8)
-    createStroke(grabFrame, Color3.fromRGB(80, 50, 150), 1, 0.6)
-    
-    local grabLbl = Instance.new("TextLabel")
-    grabLbl.Size = UDim2.new(1, -70, 1, 0)
-    grabLbl.Position = UDim2.new(0, 15, 0, 0)
-    grabLbl.BackgroundTransparency = 1
-    grabLbl.Text = "🤖 Auto Grab Items"
-    grabLbl.TextColor3 = Color3.fromRGB(220, 200, 255)
-    grabLbl.Font = Enum.Font.GothamBold
-    grabLbl.TextSize = 14
-    grabLbl.TextXAlignment = Enum.TextXAlignment.Left
-    grabLbl.Parent = grabFrame
-
-    local grabBtn = Instance.new("TextButton")
-    grabBtn.Size = UDim2.new(0, 50, 0, 26)
-    grabBtn.Position = UDim2.new(1, -60, 0.5, -13)
-    grabBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 70)
-    grabBtn.Text = ""
-    grabBtn.Parent = grabFrame
-    createCorner(grabBtn, 13)
-    local grabCirc = Instance.new("Frame")
-    grabCirc.Size = UDim2.new(0, 20, 0, 20)
-    grabCirc.Position = UDim2.new(0, 3, 0.5, -10)
-    grabCirc.BackgroundColor3 = Color3.fromRGB(150, 130, 180)
-    grabCirc.Parent = grabBtn
-    createCorner(grabCirc, 10)
-
-    grabBtn.MouseButton1Click:Connect(function()
-        autoGrabEnabled = not autoGrabEnabled
-        if autoGrabEnabled then
-            tween(grabCirc, {Position = UDim2.new(1, -23, 0.5, -10), BackgroundColor3 = Color3.fromRGB(255, 200, 100)}, 0.25)
-            tween(grabBtn, {BackgroundColor3 = Color3.fromRGB(200, 140, 60)}, 0.25)
-        else
-            tween(grabCirc, {Position = UDim2.new(0, 3, 0.5, -10), BackgroundColor3 = Color3.fromRGB(150, 130, 180)}, 0.25)
-            tween(grabBtn, {BackgroundColor3 = Color3.fromRGB(50, 40, 70)}, 0.25)
-        end
-    end)
-
     -- HOPPER BUTTONS
     local function createHopBtn(yPos, text, icon, color, action)
         local btn = Instance.new("TextButton")
@@ -585,14 +481,14 @@ local function createGUI()
         return btn
     end
 
-    createHopBtn(115, "Hop to Random Server", "🎲", Color3.fromRGB(140, 70, 255), "random")
-    createHopBtn(170, "Hop to Low Pop. Server", "📉", Color3.fromRGB(80, 160, 255), "low_pop")
+    createHopBtn(60, "Hop to Random Server", "🎲", Color3.fromRGB(140, 70, 255), "random")
+    createHopBtn(115, "Hop to Low Pop. Server", "📉", Color3.fromRGB(80, 160, 255), "low_pop")
 
     -- STATUS PANEL
     local statusPanel = Instance.new("Frame")
     statusPanel.Name = "StatusPanel"
     statusPanel.Size = UDim2.new(1, 0, 0, 80)
-    statusPanel.Position = UDim2.new(0, 0, 0, 235)
+    statusPanel.Position = UDim2.new(0, 0, 0, 180)
     statusPanel.BackgroundColor3 = Color3.fromRGB(20, 15, 35)
     statusPanel.Parent = content
     createCorner(statusPanel, 8)
