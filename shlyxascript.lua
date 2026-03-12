@@ -20,6 +20,15 @@ local espEnabled = false
 local espObjects = {}
 local guiOpen = true
 local isHopping = false
+local autoHopMode = nil  -- nil, "random" or "low_pop" — режим автохоппинга
+
+-- Проверяем, был ли скрипт запущен через хоппер на предыдущем сервере
+local savedHopData = pcall(function()
+    local data = TeleportService:GetLocalTeleportData()
+    if type(data) == "table" and data.scripterblox_hop then
+        autoHopMode = data.scripterblox_hop
+    end
+end)
 
 -- ====================== UTILITIES =========================
 
@@ -277,6 +286,10 @@ local function ServerHop(targetAction)
             end
             
             task.wait(0.5)
+            -- Сохраняем режим, чтобы новый сервер знал: запустить авто-хоппинг
+            pcall(function()
+                TeleportService:SetTeleportSetting("scripterblox_hop", targetAction)
+            end)
             TeleportService:TeleportToPlaceInstance(PlaceId, targetServer.id, LocalPlayer)
         else
             if statusLbl then statusLbl.Text = "❌ No suitable servers found!" end
